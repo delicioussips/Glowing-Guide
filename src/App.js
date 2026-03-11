@@ -398,9 +398,7 @@ Rules:
       if(!rawText) throw new Error("Empty response from AI — try a clearer scan");
 
       // Strip any accidental markdown fences
-      const cleaned = rawText.replace(/^```[a-z]*
-?/,"").replace(/
-?```$/,"").trim();
+      const cleaned = rawText.replace(/^```[a-z]*\n?/,"").replace(/\n?```$/,"").trim();
       let parsed;
       try { parsed = JSON.parse(cleaned); } 
       catch(e){ throw new Error("AI returned unexpected format. Response started with: " + cleaned.slice(0,60)); }
@@ -723,7 +721,7 @@ function printInventory(rows, adjustments){
 }
 
 function InventoryLog({ receivingRecords, orderPulls, invAdjustments, onAddAdjustment }){
-    const [adjustKey, setAdjustKey] = useState(null); // key of row being adjusted
+  const [adjustKey, setAdjustKey] = useState(null); // key of row being adjusted
   const [adjForm, setAdjForm]     = useState({ type:"add", qty:"", reason:"", notes:"" });
   const [flash, setFlash]         = useState(null);
   const [editNotes, setEditNotes] = useState({});
@@ -1473,7 +1471,7 @@ function ProductionOrders({ orders, onCreateOrder, onViewOrder }){
       {filtered.length===0
         ? <div style={{ textAlign:"center", padding:"52px 0", color:"rgba(255,255,255,0.18)", fontSize:14, border:"1px dashed rgba(255,255,255,0.07)", borderRadius:10 }}>{orders.length===0?"No production orders yet.":"No orders match this filter."}</div>
         : <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-{filtered.map(po=>{
+            {filtered.map(po=>{
               const allKeys=[]; po.products.forEach(p=>PROCESS_STEPS.forEach(st=>{ if(p[`requires${st.charAt(0).toUpperCase()+st.slice(1)}`]) allKeys.push(`${p.id}_${st}`); }));
               const pct=allKeys.length?Math.round((allKeys.filter(k=>po.steps[k]).length/allKeys.length)*100):0;
               const pc=po.priority==="Rush"?"#E8531A":po.priority==="Urgent"?"#D4A853":"rgba(255,255,255,0.3)";
