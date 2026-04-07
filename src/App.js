@@ -1985,12 +1985,27 @@ function getStepFields(step){
   }[step]||[];
 }
 
-function PODetailModal({ po, inventoryRows, onClose, onUpdateStep, onDeleteStep, onToggleRequired, onChangeStatus }){
+function PODetailModal({ po, inventoryRows, onClose, onUpdateStep, onDeleteStep, onToggleRequired, onChangeStatus, onUpdateOrder, customers }){
   const [activeStep,setActiveStep]=useState(null);
   const [drafts,setDrafts]=useState({});
   const [stepFlash,setStepFlash]=useState(null);
   const [editingStep,setEditingStep]=useState(null);
   const [editDraft,setEditDraft]=useState({});
+  const [editingOrder,setEditingOrder]=useState(false);
+  const [orderDraft,setOrderDraft]=useState(null);
+
+  const startEditOrder=()=>{ setOrderDraft(JSON.parse(JSON.stringify(po))); setEditingOrder(true); };
+  const cancelEditOrder=()=>{ setEditingOrder(false); setOrderDraft(null); };
+  const saveEditOrder=()=>{
+    if(!orderDraft.customer) return alert("Customer is required.");
+    if(orderDraft.products.some(p=>!p.productName)) return alert("Each product needs a name.");
+    onUpdateOrder(orderDraft);
+    setEditingOrder(false); setOrderDraft(null);
+  };
+  const updOrder=(k,v)=>setOrderDraft(p=>({...p,[k]:v}));
+  const updProd=(prodId,k,v)=>setOrderDraft(p=>({...p,products:p.products.map(pr=>pr.id===prodId?{...pr,[k]:v}:pr)}));
+  const addProdToDraft=()=>setOrderDraft(p=>({...p,products:[...p.products,{id:Date.now()+Math.floor(Math.random()*9999),productName:"",roastProfile:"",packageSize:"",skuQty:"",totalLbs:"",requiresRoast:true,requiresGrinding:false,requiresBlending:false,requiresPackaging:true,notes:"",plannedBags:[],batchNumber:nextBatch()}]}));
+  const removeProdFromDraft=(prodId)=>setOrderDraft(p=>({...p,products:p.products.filter(pr=>pr.id!==prodId)}));
 
   const setD=(key,k,v)=>setDrafts(prev=>({...prev,[key]:{...(prev[key]||{}),[k]:v}}));
   const getD=(key,k,def="")=>(drafts[key]||{})[k]??def;
@@ -2031,6 +2046,7 @@ function PODetailModal({ po, inventoryRows, onClose, onUpdateStep, onDeleteStep,
             <div style={{ fontSize:13, color:"rgba(255,255,255,0.55)", marginTop:2 }}>👤 {po.customer} · {po.products.length} product{po.products.length!==1?"s":""} · {po.date}</div>
           </div>
           <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+            {!editingOrder && <button onClick={startEditOrder} style={ghost({padding:"6px 14px",fontSize:12,color:"#D4A853",borderColor:"#D4A85355"})}>✏️ Edit Order</button>}
             <button onClick={()=>printReport(po)} style={ghost({padding:"6px 14px",fontSize:12,color:"#3DAA6A",borderColor:"#3DAA6A55"})}>🖨 Print Report</button>
             <select value={po.status} onChange={e=>onChangeStatus(po.id,e.target.value)} style={{ ...inp(), width:"auto", fontSize:12, padding:"6px 12px", color:sc(po.status) }}>
               <option>Open</option><option>In Progress</option><option>Closed</option>
@@ -2038,6 +2054,107 @@ function PODetailModal({ po, inventoryRows, onClose, onUpdateStep, onDeleteStep,
             <button onClick={onClose} style={ghost({padding:"6px 14px",fontSize:13})}>✕ Close</button>
           </div>
         </div>
+
+        {editingOrder && orderDraft && (
+          <div style={{ background:"rgba(212,168,83,0.06)", borderBottom:"1px solid rgba(212,168,83,0.25)", padding:"18px 22px" }}>
+            <div style={{ fontSize:13, fontWeight:700, color:"#D4A853", marginBottom:14 }}>✏️ EDITING PRODUCTION ORDER</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(190px,1fr))", gap:"13px 18px", marginBottom:18 }}>
+              <div><label style={lbl}>Order Date</label><Fld type="date" value={orderDraft.date||""} onChange={v=>updOrder("date",v)}/></div>
+              <div><label style={lbl}>Customer *</label>
+                <input list="edit-customer-list" type="text" style={inp()} value={orderDraft.customer||""} onChange={e=>updOrder("customer",e.target.value)}/>
+                <datalist id="edit-customer-list">{(customers||[]).map(c=><option key={c} value={c}/>)}</datalist>
+              </div>
+              <div><label style={lbl}>Target Date</label><Fld type="date" value={orderDraft.targetDate||""} onChange={v=>updOrder("targetDate",v)}/></div>
+              <div><label style={lbl}>Priority</label><select style={inp()} value={orderDraft.priority||"Normal"} onChange={e=>updOrder("priority",e.target.value)}>{["Normal","Urgent","Rush"].map(o=><option key={o}>{o}</option>)}</select></div>
+              <div style={{ gridColumn:"1/-1" }}><label style={lbl}>Order Notes</label><Fld type="textarea" value={orderDraft.notes||""} onChange={v=>updOrder("notes",v)}/></div>
+            </div>
+
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+              <div style={{ fontSize:12, fontWeight:700, color:"rgba(255,255,255,0.7)", textTransform:"uppercase", letterSpacing:"0.08em" }}>Products / Line Items</div>
+              <button onClick={addProdToDraft} style={ghost({fontSize:11,padding:"5px 12px",color:"#D4A853",borderColor:"#D4A85366"})}>+ Add Product</button>
+            </div>
+
+            {orderDraft.products.map((p,i)=>(
+              <div key={p.id} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(212,168,83,0.2)", borderRadius:10, padding:14, marginBottom:10 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:11 }}>
+                  <div style={{ fontSize:12, color:"#D4A853", fontWeight:700 }}>Line {i+1} · {p.batchNumber}</div>
+                  {orderDraft.products.length>1 && <button onClick={()=>removeProdFromDraft(p.id)} style={ghost({fontSize:11,padding:"3px 10px",color:"#E8531A",borderColor:"#E8531A44"})}>✕ Remove</button>}
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))", gap:"10px 15px", marginBottom:11 }}>
+                  <div><label style={lbl}>Product Name *</label><Fld type="text" value={p.productName} onChange={v=>updProd(p.id,"productName",v)}/></div>
+                  <div><label style={lbl}>Roast Profile</label><select style={inp()} value={p.roastProfile||""} onChange={e=>updProd(p.id,"roastProfile",e.target.value)}><option value="">— select —</option>{["Light","Medium-Light","Medium","Medium-Dark","Dark"].map(o=><option key={o}>{o}</option>)}</select></div>
+                  <div><label style={lbl}>Package Size</label><select style={inp()} value={p.packageSize||""} onChange={e=>updProd(p.id,"packageSize",e.target.value)}><option value="">— select —</option>{["8oz","12oz","1lb","2lb","5lb","Bulk","Custom"].map(o=><option key={o}>{o}</option>)}</select></div>
+                  <div><label style={lbl}>SKU Qty</label><Fld type="number" value={p.skuQty||""} onChange={v=>updProd(p.id,"skuQty",v)}/></div>
+                  <div><label style={lbl}>Green Coffee (lbs)</label><Fld type="number" value={p.totalLbs||""} onChange={v=>updProd(p.id,"totalLbs",v)}/></div>
+                  <div style={{ gridColumn:"1/-1" }}><label style={lbl}>Line Notes</label><Fld type="text" value={p.notes||""} onChange={v=>updProd(p.id,"notes",v)}/></div>
+                </div>
+
+                {/* Required steps editing */}
+                <div style={{ marginBottom:11 }}>
+                  <div style={{ ...lbl, marginBottom:6 }}>Required Steps</div>
+                  <div style={{ display:"flex", gap:18, flexWrap:"wrap" }}>
+                    {PROCESS_STEPS.map(step=>(
+                      <label key={step} style={{ display:"flex", alignItems:"center", gap:7, cursor:"pointer", fontSize:12, color:"rgba(255,255,255,0.65)" }}>
+                        <input type="checkbox" checked={p[`requires${step.charAt(0).toUpperCase()+step.slice(1)}`]??false} onChange={e=>updProd(p.id,`requires${step.charAt(0).toUpperCase()+step.slice(1)}`,e.target.checked)} style={{ accentColor:"#D4A853", width:13, height:13 }}/>
+                        {STEP_LABELS[step]}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Planned bags editing */}
+                <div style={{ padding:11, background:"rgba(200,112,42,0.06)", border:"1px solid rgba(200,112,42,0.18)", borderRadius:8 }}>
+                  <div style={{ fontSize:10, color:"#C8702A", textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:700, marginBottom:8 }}>📋 Planned Bags from Inventory</div>
+                  <div style={{ marginBottom:8 }}>
+                    <select style={inp()} value="" onChange={e=>{
+                      if(!e.target.value) return;
+                      const [origin,bagMarks]=e.target.value.split("||");
+                      const cur=p.plannedBags||[];
+                      if(!cur.find(b=>b.origin===origin&&b.bagMarks===bagMarks)){
+                        const row=(inventoryRows||[]).find(r=>r.origin===origin&&r.bagMarks===bagMarks);
+                        updProd(p.id,"plannedBags",[...cur,{origin,bagMarks,bagsUsed:"",weightPerBag:row?.weightPerBag||"",available:row?(row.bagsIn-row.bagsOut):0}]);
+                      }
+                      e.target.value="";
+                    }}>
+                      <option value="">— Add bag from inventory —</option>
+                      {(inventoryRows||[]).filter(r=>r.bagsIn-r.bagsOut>0).map(r=>{
+                        const key=`${r.origin}||${r.bagMarks}`;
+                        const already=(p.plannedBags||[]).find(b=>b.origin===r.origin&&b.bagMarks===r.bagMarks);
+                        return <option key={key} value={key} disabled={!!already}>{already?"✓ ":""}{r.origin} — {r.bagMarks} ({r.bagsIn-r.bagsOut} bags)</option>;
+                      })}
+                    </select>
+                  </div>
+                  {(p.plannedBags||[]).length>0 && (
+                    <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                      {p.plannedBags.map((b,bi)=>(
+                        <div key={bi} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(200,112,42,0.2)", borderRadius:6, padding:"6px 10px", flexWrap:"wrap" }}>
+                          <div style={{ flex:"1 1 160px", minWidth:140 }}>
+                            <span style={{ color:"#C8702A", fontWeight:600, fontSize:11 }}>{b.origin}</span>
+                            <span style={{ color:"rgba(255,255,255,0.5)", marginLeft:6, fontSize:10 }}>{b.bagMarks}</span>
+                          </div>
+                          <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                            <label style={{ ...lbl, margin:0, whiteSpace:"nowrap" }}>Bags:</label>
+                            <input type="text" inputMode="decimal" style={{ ...inp(), width:55, padding:"3px 6px", fontSize:11 }} value={b.bagsUsed||""} onWheel={e=>e.currentTarget.blur()} onChange={e=>updProd(p.id,"plannedBags",p.plannedBags.map((pb,idx)=>idx===bi?{...pb,bagsUsed:e.target.value}:pb))}/>
+                          </div>
+                          <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                            <label style={{ ...lbl, margin:0, whiteSpace:"nowrap" }}>lbs/Bag:</label>
+                            <input type="text" inputMode="decimal" style={{ ...inp(), width:60, padding:"3px 6px", fontSize:11 }} value={b.weightPerBag||""} onWheel={e=>e.currentTarget.blur()} onChange={e=>updProd(p.id,"plannedBags",p.plannedBags.map((pb,idx)=>idx===bi?{...pb,weightPerBag:e.target.value}:pb))}/>
+                          </div>
+                          <button onClick={()=>updProd(p.id,"plannedBags",p.plannedBags.filter((_,idx)=>idx!==bi))} style={{ background:"transparent", border:"none", color:"#E8531A", cursor:"pointer", fontSize:14, padding:"0 4px" }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            <div style={{ display:"flex", gap:10, marginTop:14 }}>
+              <button onClick={saveEditOrder} style={mkBtn("#3DAA6A",{padding:"9px 22px",fontSize:12})}>✓ Save Changes</button>
+              <button onClick={cancelEditOrder} style={ghost({padding:"9px 18px",fontSize:12})}>Cancel</button>
+            </div>
+          </div>
+        )}
 
         <div style={{ padding:"20px 22px" }}>
           {po.notes && <div style={{ marginBottom:18, fontSize:13, color:"rgba(255,255,255,0.4)", fontStyle:"italic", padding:"10px 14px", background:"rgba(255,255,255,0.03)", borderRadius:8 }}>📝 {po.notes}</div>}
@@ -2717,6 +2834,25 @@ export default function CoffeeCRM(){
       return updated;
     }));
   };
+  const handleUpdateOrder=(updatedOrder)=>{
+    setOrders(prev=>prev.map(o=>{
+      if(o.id!==updatedOrder.id) return o;
+      // Recalculate status based on edited products and existing steps
+      const newSteps = {...updatedOrder.steps};
+      // Remove step data for products that no longer exist
+      const validProdIds = new Set(updatedOrder.products.map(p=>p.id));
+      Object.keys(newSteps).forEach(k=>{
+        const prodId = parseInt(k.split("_")[0]);
+        if(!validProdIds.has(prodId)) delete newSteps[k];
+      });
+      const allKeys=[];
+      updatedOrder.products.forEach(p=>PROCESS_STEPS.forEach(st=>{ if(p[`requires${st.charAt(0).toUpperCase()+st.slice(1)}`]) allKeys.push(`${p.id}_${st}`); }));
+      const status = allKeys.length===0?"Open":allKeys.every(k=>newSteps[k])?"Closed":allKeys.some(k=>newSteps[k])?"In Progress":"Open";
+      const updated = {...updatedOrder, steps:newSteps, status};
+      updateOrder(updated).catch(e=>setSyncError(e.message));
+      return updated;
+    }));
+  };
   const handleSaveReceiving=async(r)=>{ setReceiving(p=>[r,...p]); try{ await insertReceiving(r); }catch(e){ setSyncError(e.message); } };
   const handleUpdateRecord=async(rec)=>{
     setReceiving(prev=>prev.map(r=>r.id===rec.id?rec:r));
@@ -2950,7 +3086,7 @@ export default function CoffeeCRM(){
         </div>
       </div>
 
-      {viewPO && <PODetailModal po={viewPO} inventoryRows={inventoryRows} onClose={()=>setViewingPO(null)} onUpdateStep={handleUpdateStep} onDeleteStep={handleDeleteStep} onToggleRequired={handleToggleRequired} onChangeStatus={handleChangeStatus}/>}
+      {viewPO && <PODetailModal po={viewPO} inventoryRows={inventoryRows} onClose={()=>setViewingPO(null)} onUpdateStep={handleUpdateStep} onDeleteStep={handleDeleteStep} onToggleRequired={handleToggleRequired} onChangeStatus={handleChangeStatus} onUpdateOrder={handleUpdateOrder} customers={allCustomers}/>}
     </div>
   );
 }
