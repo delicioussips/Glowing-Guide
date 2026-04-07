@@ -417,7 +417,7 @@ function printReport(po){
     }).join("");
 
     const plannedBagsHtml = (prod.plannedBags||[]).length>0
-      ? `<div class="planned-bags"><b>📋 Planned Bags:</b> ${prod.plannedBags.map(b=>`${b.origin}/${b.bagMarks} × ${b.bagsUsed||"?"} bags${b.weightPerBag?` (${b.weightPerBag} lbs/bag)`:""}`).join(" · ")}</div>`
+      ? `<div class="planned-bags"><div class="pb-title">📋 Planned Bags</div>${prod.plannedBags.map(b=>`<div class="pb-row"><b>${b.origin}</b> / ${b.bagMarks} × <b>${b.bagsUsed||"?"}</b> bags${b.weightPerBag?` (${b.weightPerBag} lbs/bag)`:""}</div>`).join("")}</div>`
       : "";
 
     return `<div class="prod">
@@ -465,8 +465,10 @@ function printReport(po){
     .tag.blue{background:#ddf0f8;color:#0d6c7e;border:1px solid #b0dcea}
     .batch{font-size:9px;color:#888;background:#f5f0e8;padding:2px 6px;border-radius:3px;border:1px solid #e0d0b0}
     .prod-note{padding:4px 12px;font-size:10px;color:#888;font-style:italic;background:#fffaf5;border-bottom:1px solid #f0e0c8}
-    .planned-bags{padding:5px 12px;font-size:10px;color:#6b3a0f;background:#fdf0e0;border-bottom:1px solid #f0e0c8}
-    .planned-bags b{color:#c8400a;margin-right:4px}
+    .planned-bags{padding:6px 12px;background:#fdf0e0;border-bottom:1px solid #f0e0c8}
+    .pb-title{font-size:9px;color:#c8400a;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+    .pb-row{font-size:10px;color:#6b3a0f;padding:1px 0}
+    .pb-row b{color:#c8400a}
     /* ── Steps ── */
     .steps{padding:8px 10px;display:flex;flex-direction:column;gap:6px}
     .step{border-radius:4px;padding:5px 9px;font-size:11px}
@@ -1879,13 +1881,15 @@ function ProductionOrders({ orders, onCreateOrder, onViewOrder, onDeleteOrder, c
                               <span style={{ color:"#A855F7", fontSize:11 }}>{prod.batchNumber}</span>
                             </div>
                             {(prod.plannedBags||[]).length>0 && (
-                              <div style={{ marginTop:3, marginLeft:18, fontSize:11, color:"rgba(255,255,255,0.45)", display:"flex", flexWrap:"wrap", gap:8 }}>
-                                <span style={{ color:"#C8702A", fontSize:10, fontWeight:700 }}>📋 BAGS:</span>
-                                {prod.plannedBags.map((b,bi)=>(
-                                  <span key={bi}>
-                                    <b style={{ color:"#C8702A" }}>{b.origin}</b>/{b.bagMarks} × <b style={{ color:"#3DAA6A" }}>{b.bagsUsed||"?"}</b>{b.weightPerBag?` (${b.weightPerBag}lbs)`:""}{bi<prod.plannedBags.length-1?",":""}
-                                  </span>
-                                ))}
+                              <div style={{ marginTop:4, marginLeft:18, padding:"4px 0" }}>
+                                <div style={{ color:"#C8702A", fontSize:10, fontWeight:700, marginBottom:3 }}>📋 BAGS:</div>
+                                <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                                  {prod.plannedBags.map((b,bi)=>(
+                                    <div key={bi} style={{ fontSize:11, color:"rgba(255,255,255,0.55)" }}>
+                                      <b style={{ color:"#C8702A" }}>{b.origin}</b> / {b.bagMarks} × <b style={{ color:"#3DAA6A" }}>{b.bagsUsed||"?"}</b> bags{b.weightPerBag?` (${b.weightPerBag} lbs/bag)`:""}
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </div>
