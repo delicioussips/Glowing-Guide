@@ -1690,9 +1690,10 @@ Rules:
 }
 
 // ─── PRODUCTION ORDERS ────────────────────────────────────────────────────────
-const emptyProd=()=>({ id:Date.now()+Math.floor(Math.random()*9999), productName:"", roastProfile:"", packageSize:"", skuQty:"", totalLbs:"", requiresRoast:true, requiresGrinding:false, requiresBlending:false, requiresPackaging:true, notes:"" });
+// ─── PRODUCTION ORDERS ────────────────────────────────────────────────────────
+const emptyProd=()=>({ id:Date.now()+Math.floor(Math.random()*9999), productName:"", roastProfile:"", packageSize:"", skuQty:"", totalLbs:"", requiresRoast:true, requiresGrinding:false, requiresBlending:false, requiresPackaging:true, notes:"", plannedBags:[] });
 
-function ProductionOrders({ orders, onCreateOrder, onViewOrder, onDeleteOrder, customers }){
+function ProductionOrders({ orders, onCreateOrder, onViewOrder, onDeleteOrder, customers, inventoryRows }){
   const [showForm,setShowForm]=useState(false);
   const [showImporter,setShowImporter]=useState(false);
   const [flash,setFlash]=useState(false);
@@ -1775,6 +1776,57 @@ function ProductionOrders({ orders, onCreateOrder, onViewOrder, onDeleteOrder, c
                 <div><label style={lbl}>SKU Qty (units)</label><Fld type="number" value={p.skuQty} onChange={v=>sp(p.id,"skuQty",v)}/></div>
                 <div><label style={lbl}>Green Coffee Needed (lbs)</label><Fld type="number" value={p.totalLbs} onChange={v=>sp(p.id,"totalLbs",v)}/></div>
                 <div style={{ gridColumn:"1/-1" }}><label style={lbl}>Line Notes</label><Fld type="text" value={p.notes} onChange={v=>sp(p.id,"notes",v)} placeholder="Special instructions…"/></div>
+              </div>
+              {/* Planned bags from inventory — not deducted, just a guide for the operator */}
+              <div style={{ marginBottom:14, padding:12, background:"rgba(200,112,42,0.05)", border:"1px solid rgba(200,112,42,0.18)", borderRadius:9 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                  <div style={{ fontSize:11, color:"#C8702A", textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:700 }}>Planned Bags from Inventory</div>
+                  <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", fontStyle:"italic" }}>Operator guide — does not reduce inventory</div>
+                </div>
+                <div style={{ marginBottom:8 }}>
+                  <select style={inp()} value="" onChange={e=>{
+                    if(!e.target.value) return;
+                    const [origin,bagMarks]=e.target.value.split("||");
+                    const cur=p.plannedBags||[];
+                    if(!cur.find(b=>b.origin===origin&&b.bagMarks===bagMarks)){
+                      const row=(inventoryRows||[]).find(r=>r.origin===origin&&r.bagMarks===bagMarks);
+                      sp(p.id,"plannedBags",[...cur,{origin,bagMarks,bagsUsed:"",weightPerBag:row?.weightPerBag||"",available:row?(row.bagsIn-row.bagsOut):0}]);
+                    }
+                    e.target.value="";
+                  }}>
+                    <option value="">— Add bag from inventory —</option>
+                    {(inventoryRows||[]).filter(r=>r.bagsIn-r.bagsOut>0).map(r=>{
+                      const key=`${r.origin}||${r.bagMarks}`;
+                      const already=(p.plannedBags||[]).find(b=>b.origin===r.origin&&b.bagMarks===r.bagMarks);
+                      return <option key={key} value={key} disabled={!!already}>{already?"✓ ":""}{r.origin} — {r.bagMarks} ({r.bagsIn-r.bagsOut} bags · {r.weightPerBag||"—"} lbs/bag)</option>;
+                    })}
+                  </select>
+                </div>
+                {(p.plannedBags||[]).length>0 && (
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {(p.plannedBags||[]).map((b,bi)=>(
+                      <div key={bi} style={{ display:"flex", alignItems:"center", gap:10, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(200,112,42,0.2)", borderRadius:7, padding:"7px 11px", flexWrap:"wrap" }}>
+                        <div style={{ flex:"1 1 180px", minWidth:150 }}>
+                          <span style={{ color:"#C8702A", fontWeight:600, fontSize:12 }}>{b.origin}</span>
+                          <span style={{ color:"rgba(255,255,255,0.5)", marginLeft:6, fontSize:11 }}>{b.bagMarks}</span>
+                          <span style={{ color:"#3DAA6A", fontSize:10, marginLeft:6 }}>({b.available} avail)</span>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                          <label style={{ ...lbl, margin:0, whiteSpace:"nowrap" }}>Bags:</label>
+                          <input type="text" inputMode="decimal" style={{ ...inp(), width:60, padding:"4px 7px", fontSize:12 }} value={b.bagsUsed} onWheel={e=>e.currentTarget.blur()} onChange={e=>sp(p.id,"plannedBags",p.plannedBags.map((pb,i)=>i===bi?{...pb,bagsUsed:e.target.value}:pb))}/>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                          <label style={{ ...lbl, margin:0, whiteSpace:"nowrap" }}>lbs/Bag:</label>
+                          <input type="text" inputMode="decimal" style={{ ...inp(), width:65, padding:"4px 7px", fontSize:12 }} value={b.weightPerBag||""} onWheel={e=>e.currentTarget.blur()} onChange={e=>sp(p.id,"plannedBags",p.plannedBags.map((pb,i)=>i===bi?{...pb,weightPerBag:e.target.value}:pb))}/>
+                        </div>
+                        <button onClick={()=>sp(p.id,"plannedBags",p.plannedBags.filter((_,i)=>i!==bi))} style={{ background:"transparent", border:"none", color:"#E8531A", cursor:"pointer", fontSize:15, padding:"0 4px" }}>✕</button>
+                      </div>
+                    ))}
+                    <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)", paddingLeft:4 }}>
+                      Total planned: <b style={{ color:"#F5EDD8" }}>{(p.plannedBags||[]).reduce((s,b)=>s+(Number(b.bagsUsed)||0),0)}</b> bags · <b style={{ color:"#F5EDD8" }}>{(p.plannedBags||[]).reduce((s,b)=>s+((Number(b.bagsUsed)||0)*(Number(b.weightPerBag)||0)),0).toFixed(1)}</b> lbs
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <div style={{ ...lbl, marginBottom:8 }}>Required Steps</div>
@@ -1985,6 +2037,18 @@ function PODetailModal({ po, inventoryRows, onClose, onUpdateStep, onDeleteStep,
                       {prod.skuQty  && <span>📦 {prod.skuQty} units</span>}
                       {prod.totalLbs && <span>⚖️ {prod.totalLbs} lbs green</span>}
                     </div>
+                    {(prod.plannedBags||[]).length>0 && (
+                      <div style={{ marginTop:6, padding:"6px 10px", background:"rgba(200,112,42,0.08)", border:"1px solid rgba(200,112,42,0.25)", borderRadius:6 }}>
+                        <div style={{ fontSize:10, color:"#C8702A", textTransform:"uppercase", letterSpacing:"0.06em", fontWeight:700, marginBottom:3 }}>📋 Planned Bags</div>
+                        <div style={{ display:"flex", flexWrap:"wrap", gap:8, fontSize:11 }}>
+                          {prod.plannedBags.map((b,bi)=>(
+                            <span key={bi} style={{ color:"rgba(255,255,255,0.7)" }}>
+                              <b style={{ color:"#C8702A" }}>{b.origin}</b> / {b.bagMarks} × <b style={{ color:"#3DAA6A" }}>{b.bagsUsed||"?"}</b>{b.weightPerBag?` (${b.weightPerBag} lbs)`:""}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div style={{ minWidth:130 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"rgba(255,255,255,0.35)", marginBottom:4 }}><span>Progress</span><span>{pct}%</span></div>
@@ -2106,6 +2170,34 @@ function PODetailModal({ po, inventoryRows, onClose, onUpdateStep, onDeleteStep,
                             </div>
 
                             {/* Inventory bag picker */}
+                            {(step==="roast"||step==="blending"||step==="grinding") && (prod.plannedBags||[]).length>0 && (
+                              <div style={{ marginBottom:14, padding:12, background:"rgba(61,170,106,0.07)", border:"1px solid rgba(61,170,106,0.25)", borderRadius:9 }}>
+                                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:9 }}>
+                                  <div style={{ fontSize:11, color:"#3DAA6A", textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:700 }}>📋 Planned Bags (from Production Order)</div>
+                                  <button onClick={()=>{
+                                    const planned = (prod.plannedBags||[]).map(b=>({
+                                      key:`${b.origin}||${b.bagMarks}`,
+                                      origin:b.origin, bagMarks:b.bagMarks,
+                                      bagsUsed:b.bagsUsed||"",
+                                      available:(inventoryRows.find(r=>r.origin===b.origin&&r.bagMarks===b.bagMarks)?.bagsIn - inventoryRows.find(r=>r.origin===b.origin&&r.bagMarks===b.bagMarks)?.bagsOut)||0
+                                    }));
+                                    setD(stepKey,"selectedBags",planned);
+                                  }} style={ghost({padding:"4px 11px",fontSize:10,color:"#3DAA6A",borderColor:"#3DAA6A66"})}>✓ Confirm Planned Bags</button>
+                                </div>
+                                <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                                  {(prod.plannedBags||[]).map((b,bi)=>(
+                                    <div key={bi} style={{ display:"flex", gap:10, fontSize:11, color:"rgba(255,255,255,0.6)", padding:"3px 8px", background:"rgba(255,255,255,0.03)", borderRadius:5 }}>
+                                      <span style={{ color:"#C8702A", fontWeight:600, minWidth:140 }}>{b.origin}</span>
+                                      <span style={{ minWidth:100 }}>{b.bagMarks}</span>
+                                      <span style={{ color:"#3DAA6A", fontWeight:700 }}>{b.bagsUsed||"—"} bags</span>
+                                      {b.weightPerBag && <span style={{ color:"rgba(255,255,255,0.4)" }}>× {b.weightPerBag} lbs</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                                <div style={{ marginTop:6, fontSize:10, color:"rgba(255,255,255,0.4)", fontStyle:"italic" }}>Click "Confirm Planned Bags" to auto-select these in the picker below, or manually pick different bags.</div>
+                              </div>
+                            )}
+
                             {(step==="roast"||step==="blending") && avail.length>0 && (
                               <div style={{ marginBottom:16, padding:13, background:"rgba(200,112,42,0.07)", border:"1px solid rgba(200,112,42,0.18)", borderRadius:9 }}>
                                 <div style={{ fontSize:11, color:"#C8702A", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:10 }}>
@@ -2795,7 +2887,7 @@ export default function CoffeeCRM(){
         </div>
 
         <div style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.065)", borderRadius:12, padding:20 }}>
-          {active==="production" && <ProductionOrders orders={orders} onCreateOrder={handleCreateOrder} onViewOrder={id=>setViewingPO(id)} onDeleteOrder={handleDeleteOrder} customers={allCustomers}/>}
+          {active==="production" && <ProductionOrders orders={orders} onCreateOrder={handleCreateOrder} onViewOrder={id=>setViewingPO(id)} onDeleteOrder={handleDeleteOrder} customers={allCustomers} inventoryRows={inventoryRows}/>}
           {active==="receiving"  && <ReceivingLog onSave={handleSaveReceiving} records={receiving} onUpdateRecord={handleUpdateRecord} onDeleteRecord={handleDeleteReceiving}/>}
           {active==="inventory"  && <InventoryLog receivingRecords={receiving} orderPulls={orderPulls} invAdjustments={invAdjustments} onAddAdjustment={handleAddAdj} onUpdateReceivingCost={handleUpdateReceivingCost} onDeleteInventoryItem={handleDeleteInventoryItem}/>}
           {active==="cupping"    && <CuppingLog cuppingRecords={cuppingRecords} onSave={handleSaveCupping} onUpdate={handleUpdateCupping} onDelete={handleDeleteCupping} orders={orders} inventoryRows={inventoryRows}/>}
