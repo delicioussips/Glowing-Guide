@@ -416,6 +416,10 @@ function printReport(po){
       return `<div class="step done" style="border-left:3px solid ${color}"><b style="color:${color}">${STEP_ICON[step]||"•"} ${STEP_LABELS[step]}</b>${bags}<table>${rows}</table></div>`;
     }).join("");
 
+    const plannedBagsHtml = (prod.plannedBags||[]).length>0
+      ? `<div class="planned-bags"><b>📋 Planned Bags:</b> ${prod.plannedBags.map(b=>`${b.origin}/${b.bagMarks} × ${b.bagsUsed||"?"} bags${b.weightPerBag?` (${b.weightPerBag} lbs/bag)`:""}`).join(" · ")}</div>`
+      : "";
+
     return `<div class="prod">
       <div class="prod-head">
         <span class="ln">Line ${i+1}</span>
@@ -427,6 +431,7 @@ function printReport(po){
         ${prod.totalLbs?`<span class="batch">${prod.totalLbs} lbs</span>`:""}
       </div>
       ${prod.notes?`<div class="prod-note">${prod.notes}</div>`:""}
+      ${plannedBagsHtml}
       <div class="steps">${stepsHtml||"<div class='step pending'>No steps logged yet</div>"}</div>
     </div>`;
   }).join("");
@@ -460,6 +465,8 @@ function printReport(po){
     .tag.blue{background:#ddf0f8;color:#0d6c7e;border:1px solid #b0dcea}
     .batch{font-size:9px;color:#888;background:#f5f0e8;padding:2px 6px;border-radius:3px;border:1px solid #e0d0b0}
     .prod-note{padding:4px 12px;font-size:10px;color:#888;font-style:italic;background:#fffaf5;border-bottom:1px solid #f0e0c8}
+    .planned-bags{padding:5px 12px;font-size:10px;color:#6b3a0f;background:#fdf0e0;border-bottom:1px solid #f0e0c8}
+    .planned-bags b{color:#c8400a;margin-right:4px}
     /* ── Steps ── */
     .steps{padding:8px 10px;display:flex;flex-direction:column;gap:6px}
     .step{border-radius:4px;padding:5px 9px;font-size:11px}
@@ -1863,12 +1870,24 @@ function ProductionOrders({ orders, onCreateOrder, onViewOrder, onDeleteOrder, c
                       <div style={{ fontSize:14, fontWeight:700, color:"#F5EDD8" }}>👤 {po.customer}</div>
                       <div style={{ marginTop:6, display:"flex", flexDirection:"column", gap:3 }}>
                         {po.products.map((prod,i)=>(
-                          <div key={prod.id} style={{ fontSize:12, color:"rgba(255,255,255,0.5)", display:"flex", gap:10, flexWrap:"wrap" }}>
-                            <span style={{ color:"rgba(255,255,255,0.7)", fontWeight:600 }}>Line {i+1}:</span>
-                            <span>{prod.productName}</span>
-                            {prod.roastProfile && <span style={{ color:"#E8531A" }}>{prod.roastProfile}</span>}
-                            {prod.skuQty && <span>📦 {prod.skuQty} {prod.packageSize&&`× ${prod.packageSize}`}</span>}
-                            <span style={{ color:"#A855F7", fontSize:11 }}>{prod.batchNumber}</span>
+                          <div key={prod.id} style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>
+                            <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                              <span style={{ color:"rgba(255,255,255,0.7)", fontWeight:600 }}>Line {i+1}:</span>
+                              <span>{prod.productName}</span>
+                              {prod.roastProfile && <span style={{ color:"#E8531A" }}>{prod.roastProfile}</span>}
+                              {prod.skuQty && <span>📦 {prod.skuQty} {prod.packageSize&&`× ${prod.packageSize}`}</span>}
+                              <span style={{ color:"#A855F7", fontSize:11 }}>{prod.batchNumber}</span>
+                            </div>
+                            {(prod.plannedBags||[]).length>0 && (
+                              <div style={{ marginTop:3, marginLeft:18, fontSize:11, color:"rgba(255,255,255,0.45)", display:"flex", flexWrap:"wrap", gap:8 }}>
+                                <span style={{ color:"#C8702A", fontSize:10, fontWeight:700 }}>📋 BAGS:</span>
+                                {prod.plannedBags.map((b,bi)=>(
+                                  <span key={bi}>
+                                    <b style={{ color:"#C8702A" }}>{b.origin}</b>/{b.bagMarks} × <b style={{ color:"#3DAA6A" }}>{b.bagsUsed||"?"}</b>{b.weightPerBag?` (${b.weightPerBag}lbs)`:""}{bi<prod.plannedBags.length-1?",":""}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
